@@ -647,7 +647,8 @@ def finalize(ev, res, args, pool):
         "hppc_split": hppc_split,
         "optimizer": {"method": f"scipy least_squares trf, forward-difference Jacobian with absolute "
                                 f"step {JAC_STEP} dex", "message": res.message,
-                      "status": int(res.status), "evaluations": ev.n_eval, "mesh": "coarse " + str(COARSE_MESH)},
+                      "mesh_during_optimization": "coarse" if ev.mesh else "default",
+                      "status": int(res.status), "evaluations": ev.n_eval},
     }
     (OUT / "optimized_parameters.json").write_text(json.dumps(result, indent=2, default=str))
 
@@ -707,6 +708,8 @@ def main():
     ap.add_argument("--init", default="", help="initial values, e.g. k_n=0.6,D_n=3e-14,b_bot=2")
     ap.add_argument("--fit", default="", help="parameters to fit, e.g. k_n,D_n,D_p,b_bot (overrides --dp-shape)")
     ap.add_argument("--bounds", default="", help="override bounds, e.g. D_n=3e-14:3e-13,b_bot=0:3")
+    ap.add_argument("--mesh", choices=["coarse", "default"], default="coarse",
+                    help="mesh during optimization; 'default' = same as validation (needed with b_bot, see notes)")
     ap.add_argument("--hppc-split", action="store_true",
                     help="add HPPC pulse sets of odd SOC levels to the training data; even levels held out")
     ap.add_argument("--hysteresis", action="store_true",
@@ -742,10 +745,12 @@ def main():
     print("Fitted parameters: " + ", ".join(f"{p[0]} (start {p[3]:.3g})" for p in PARAMS)
           + ("; k_p fixed at Prada2013" if "k_p" not in names else ""))
     print("=" * 66)
-    print(f"Parallel workers: {args.workers}; mesh during optimization: coarse {COARSE_MESH}")
+    print(f"Parallel workers: {args.workers}")
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         keys = TRAINING_KEYS + (["HPPC"] if args.hppc_split else [])
-        ev = Evaluator(keys, COARSE_MESH, args.kappa, pool)
+        mesh = COARSE_MESH if args.mesh == "coarse" else {}
+        ev = Evaluator(keys, mesh, args.kappa, pool)
+        print(f"Mesh during optimization: {'coarse ' + str(COARSE_MESH) if mesh else 'PyBaMM default (same as validation)'}")
         if args.hppc_split:
             tr, ho = hppc_split_masks(ev.data["HPPC"])
             lv, _ = hppc_levels(ev.data["HPPC"])
