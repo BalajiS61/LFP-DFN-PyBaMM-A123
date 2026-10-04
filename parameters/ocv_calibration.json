@@ -1,0 +1,122 @@
+{
+  "method": "OCV fit of the electrode stoichiometry window and capacities",
+  "positive_ocp_source": "Prada2013",
+  "negative_ocp_source": "Ecker2015",
+  "x100": 0.9662412863899137,
+  "y100": 0.009460703758778258,
+  "Q_n_Ah": 2.7445749505427925,
+  "Q_p_Ah": 3.291864948555765,
+  "Negative electrode active material volume fraction": 0.5476241470101894,
+  "Positive electrode active material volume fraction": 0.374,
+  "prada_active_material_fraction": {
+    "negative": 0.58,
+    "positive": 0.374
+  },
+  "porosity": {
+    "negative": 0.36,
+    "positive": 0.426
+  },
+  "geometry_capacity_limit_Ah": {
+    "negative": 3.207542943344141,
+    "positive": 5.0522205360187415
+  },
+  "reference_capacity_Ah": 2.4316645661660385,
+  "rmse_rest_mV": 7.013595035369425,
+  "rmse_rest_untuned_mV": 229.5987451969291,
+  "Q_p_fixed": true,
+  "Q_p_fixed_reason": "LFP OCP flat on its plateau: Q_p not identifiable from OCV (profile scan in qp_profile_scan.csv); kept at the Prada2013 value",
+  "qp_profile_scan": [
+    {
+      "Q_p_Ah": 2.4108,
+      "rmse_rest_mV": 148.90441106688672,
+      "N_P": 1.3304890257773936
+    },
+    {
+      "Q_p_Ah": 2.6509291396380674,
+      "rmse_rest_mV": 10.974494566981472,
+      "N_P": 1.2099693256161754
+    },
+    {
+      "Q_p_Ah": 2.891058279276135,
+      "rmse_rest_mV": 7.332693881095427,
+      "N_P": 0.9668606287887366
+    },
+    {
+      "Q_p_Ah": 3.131187418914202,
+      "rmse_rest_mV": 7.13065086944541,
+      "N_P": 0.8785284720588646
+    },
+    {
+      "Q_p_Ah": 3.3713165585522695,
+      "rmse_rest_mV": 6.960401564616379,
+      "N_P": 0.8136673322135681
+    },
+    {
+      "Q_p_Ah": 3.6114456981903373,
+      "rmse_rest_mV": 6.817312743540283,
+      "N_P": 0.7590366294600384
+    },
+    {
+      "Q_p_Ah": 3.8515748378284043,
+      "rmse_rest_mV": 6.6959127679673385,
+      "N_P": 0.7117083764988049
+    },
+    {
+      "Q_p_Ah": 4.091703977466472,
+      "rmse_rest_mV": 6.590505407874399,
+      "N_P": 0.6702023191288816
+    },
+    {
+      "Q_p_Ah": 4.331833117104539,
+      "rmse_rest_mV": 6.497071420200447,
+      "N_P": 0.6334597301769078
+    },
+    {
+      "Q_p_Ah": 4.571962256742607,
+      "rmse_rest_mV": 6.412479627170684,
+      "N_P": 0.6007856206910459
+    },
+    {
+      "Q_p_Ah": 4.812091396380675,
+      "rmse_rest_mV": 6.335099663482733,
+      "N_P": 0.5714280327865187
+    },
+    {
+      "Q_p_Ah": 5.0522205360187415,
+      "rmse_rest_mV": 6.263204440060829,
+      "N_P": 0.5450573695592414
+    }
+  ],
+  "candidates": [
+    {
+      "negative_ocp_source": "Prada2013",
+      "x100": 0.9347836390173478,
+      "y100": 0.008595765777689888,
+      "Q_n_Ah": 3.2075429433441407,
+      "Q_p_Ah": 3.291864948555765,
+      "rmse_rest_mV": 11.780627169342736,
+      "max_abs_rest_mV": 19.364912236339737,
+      "top_error_mV": 6.151898150146273,
+      "knee_ocv_V": 3.164662188216921,
+      "Q_n_at_bound": true
+    },
+    {
+      "negative_ocp_source": "Ecker2015",
+      "x100": 0.9662412863899137,
+      "y100": 0.009460703758778258,
+      "Q_n_Ah": 2.7445749505427925,
+      "Q_p_Ah": 3.291864948555765,
+      "rmse_rest_mV": 7.013595035369425,
+      "max_abs_rest_mV": 13.603781075981924,
+      "top_error_mV": 2.68129890128721,
+      "knee_ocv_V": 3.150184405418669,
+      "Q_n_at_bound": false
+    }
+  ],
+  "sigma_mV": {
+    "rest": 3.0,
+    "start": 20.0
+  },
+  "ocv_at_measured_end_V": 3.150184405418669,
+  "note_end_of_discharge": "OCV at the measured end stays near 3.15 V (rest at 2.371 Ah relaxes to 3.176 V): the final drop to 2.5 V under load is dynamic polarization, not thermodynamics"
+}

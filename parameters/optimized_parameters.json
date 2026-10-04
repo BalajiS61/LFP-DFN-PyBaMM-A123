@@ -1,0 +1,144 @@
+{
+  "description": "Optimized parameters for A123 ANR26650M1B: Prada2013 + Step 3c thermodynamics + Step 4 optimization (training: Charge 1C-4C, Discharge 1C)",
+  "base_parameter_set": "Prada2013",
+  "ocv_calibration_file": "results/step3c/ocv_calibration.json",
+  "optimized": {
+    "k_n": 1.0816378996161737,
+    "k_p": 9.521276732862704,
+    "D_n": 3.500000000188417e-14,
+    "D_p": 1.773001176500614
+  },
+  "optimized_kind": {
+    "k_n": "factor",
+    "k_p": "factor",
+    "D_n": "absolute",
+    "D_p": "factor"
+  },
+  "dp_shape": null,
+  "dn_shape": null,
+  "pybamm_parameter_names": {
+    "k_n": "Negative electrode exchange-current density [A.m-2]",
+    "k_p": "Positive electrode exchange-current density [A.m-2]",
+    "D_n": "Negative particle diffusivity [m2.s-1]",
+    "D_p": "Positive particle diffusivity [m2.s-1]"
+  },
+  "pybamm_values": {
+    "Negative electrode exchange-current density [A.m-2]": "function (Prada2013 based, x 1.082)",
+    "Positive electrode exchange-current density [A.m-2]": "function (Prada2013 based, x 9.521)",
+    "Negative particle diffusivity [m2.s-1]": 3.500000000188417e-14,
+    "Positive particle diffusivity [m2.s-1]": 1.0460706941353623e-17
+  },
+  "contact_resistance_Ohm": 0.002093193968882553,
+  "hysteresis_fitted": false,
+  "hysteresis_dh_V": 0.0,
+  "hysteresis_kappa": 30.0,
+  "hysteresis_Q_ref_Ah": 2.45,
+  "uncertainty_dex": {
+    "k_n": 0.005904665467213036,
+    "k_p": 0.4174691910624592,
+    "D_n": 0.023083736635457833,
+    "D_p": 0.20405078163120105
+  },
+  "uncertainty_units": "factor / absolute parameters: log10 decades; shape parameters: decades of diffusivity reduction",
+  "uncertainty_note": "formal Jacobian-based (assumes no model error) - lower bound of the true uncertainty",
+  "correlation": [
+    [
+      1.0,
+      0.1839184930570832,
+      -0.14995237084191865,
+      -0.1528551211566612
+    ],
+    [
+      0.1839184930570832,
+      1.0,
+      -0.24300323443877894,
+      -0.3709248134105208
+    ],
+    [
+      -0.14995237084191868,
+      -0.24300323443877908,
+      1.0000000000000002,
+      -0.11974481568758419
+    ],
+    [
+      -0.1528551211566612,
+      -0.3709248134105209,
+      -0.1197448156875843,
+      0.9999999999999998
+    ]
+  ],
+  "at_bound": [
+    "D_n"
+  ],
+  "training_rmse_mV_task3": {
+    "C1": 20.848322096820212,
+    "C2": 20.726388687299867,
+    "C3": 19.705259167380245,
+    "C4": 20.813947480626364,
+    "D1": 119.86086040855888,
+    "HPPC": 42.0792909715356
+  },
+  "training_rmse_mV_optimized": {
+    "C1": 21.194159180552372,
+    "C2": 21.758227828999356,
+    "C3": 20.30358557608752,
+    "C4": 17.35239922417031,
+    "D1": 120.6215473681933,
+    "HPPC": 39.27645896662636
+  },
+  "full_curve_rmse_mV_task3": {
+    "C1": 118.92059790147276,
+    "C2": 136.0345267707654,
+    "C3": 143.44040451403356,
+    "C4": 146.379409852763,
+    "D1": 119.86086040855888,
+    "HPPC": 43.07360862255755
+  },
+  "full_curve_rmse_mV_optimized": {
+    "C1": 119.77611537465869,
+    "C2": 137.16016281620082,
+    "C3": 144.6992501567191,
+    "C4": 147.57133805371254,
+    "D1": 120.6215473681933,
+    "HPPC": 40.87242401701202
+  },
+  "coverage_optimized": {
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "D1": 1.0,
+    "HPPC": 1.0
+  },
+  "cost_window": "cc",
+  "training_window": "charge tests from 0.15 Ah of charge onward, constant-current part only (CV phase excluded); D1 complete",
+  "rmse_mV_all_window_optimized": {
+    "C1": 117.25098020415787,
+    "C2": 132.41269101477405,
+    "C3": 139.12083183558434,
+    "C4": 143.81966695699128,
+    "D1": 120.4164352541148,
+    "HPPC": 39.55701820019889
+  },
+  "hppc_split": {
+    "training": "dynamic samples of odd SOC levels",
+    "held_out": "even SOC levels",
+    "task3": {
+      "train_rmse_mV": 42.0792909715356,
+      "heldout_rmse_mV": 46.060401705410996,
+      "coverage": 1.0
+    },
+    "optimized": {
+      "train_rmse_mV": 39.27645896662636,
+      "heldout_rmse_mV": 44.46028279758613,
+      "coverage": 1.0
+    }
+  },
+  "optimizer": {
+    "method": "scipy least_squares trf, forward-difference Jacobian with absolute step 0.03 dex",
+    "message": "`xtol` termination condition is satisfied.",
+    "mesh_during_optimization": "default",
+    "status": 3,
+    "evaluations": 26
+  }
+}
