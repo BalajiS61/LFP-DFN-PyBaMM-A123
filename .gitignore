@@ -1,0 +1,8 @@
+data/
+*.mat
+results/
+.venv/
+__pycache__/
+*.pyc
+.vscode/
+Thumbs.db
