@@ -6,12 +6,16 @@ residual analysis, OCV / capacity calibration, parameter optimization and valida
 Case study for MEAtec. The measurement data are confidential and **not included** in this repository.
 
 ## Results in brief
-| Model | HPPC coverage | Notes |
-|---|---|---|
-| Task 2 - Prada2013, un-tuned | 56.6 % (stops: graphite diffusion limit) | RMSE 37.3 mV on the part it simulates |
-| Task 3 - calibrated OCV / capacity + graphite diffusivity | 100 % | OCV error 229.6 -> 7.0 mV at the rest points |
-| Task 4 - optimized | see `report` | training: Charge 1C-4C + Discharge 1C |
-| Task 5 - validation on HPPC | see `report` | rest vs dynamic error, time-weighted RMSE, anode potential |
+| Model | HPPC coverage | HPPC RMSE | Time-weighted RMSE | Held-out HPPC levels | OCV error (rest points) |
+|---|---|---|---|---|---|
+| Task 2 - Prada2013, un-tuned | 56.6 % (stops: graphite diffusion limit) | 37.3 mV (0-14.3 h only) | 30.1 mV | - | 229.6 mV |
+| Task 3 - calibrated OCV / capacity + graphite diffusivity | 100 % | 43.1 mV | 22.5 mV | 46.1 mV | 7.0 mV |
+| **Task 4 - optimized (final)** | **100 %** | **40.9 mV** | **21.6 mV** | **44.5 mV** | **7.0 mV** |
+
+Final parameters (`results/step4_final_model/optimized_parameters.json`): negative exchange-current density
+1.082 x Prada2013, positive 9.52 x, graphite diffusivity 3.5e-14 m2/s, LFP diffusivity 1.77 x, contact
+resistance 2.09 mOhm. Anode potential vs Li/Li+ falls below 0 V during 4C charge (-94 mV for 791 s):
+lithium-plating risk region (plating not modelled).
 
 Full methodology, decisions and discussion: `docs/report` (and the working log `docs/report_notes.md`).
 
@@ -50,8 +54,8 @@ All commands from the project root with the virtual environment active. Outputs 
 
 | Step | Command | What it does | Runtime* |
 |---|---|---|---|
-| 0 | `python src\data_loader.py` | loads and checks all data, overview plot | s |
-| 0 | `python src\check_hppc_current.py` | HPPC current integrity (interpolation choice) | s |
+| 1 | `python src\data_loader.py` | loads and checks all data, overview plot | s |
+| 1 | `python src\check_hppc_current.py` | HPPC current integrity (interpolation choice) | s |
 | 2 | `python src\step2_baseline_hppc.py` | **Task 1-2**: DFN (Prada2013) on HPPC, plots, metrics | ~1 min |
 | 2b | `python src\step2b_diagnose_stop.py` | why the baseline stops early (`--model calibrated` for 3c) | ~1 min |
 | 3a | `python src\step3a_residual_analysis.py` | **Task 3**: residuals by phase / SOC, pulse resistance | s |
@@ -119,4 +123,3 @@ The OCV / capacity calibration it builds on is `results/step3c/ocv_calibration.j
 - The sharp end-of-discharge plunge at 1C is not reproduced: the graphite-diffusivity term that captures it
   makes the 15C HPPC pulses fail at low SOC (single-particle-size DFN limit).
 - Charge tests: the first 0.15 Ah (cell still relaxing from the preceding discharge) is excluded from the fit.
--

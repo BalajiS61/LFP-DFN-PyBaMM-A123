@@ -5,7 +5,7 @@ its step is complete and checked.
 
 ---
 
-## Step 0 - Data preparation
+## Step 1 - Data preparation
 
 **Files and formats**
 - `Charge_1C/2C/3C/4C.mat`: top-level vectors `Time`, `Current`, `Voltage` (1 s sampling).
@@ -457,4 +457,26 @@ check held for the Task 3 model, not after adding b_bot -> refit on the default 
 - Independent validation: HPPC even SOC levels. Full-HPPC metrics are partly training data (odd levels)
   and partly calibration data (rests, Step 3c) - only the even-level dynamic error is fully independent.
 - Default (validation) mesh during optimization; run: results/step4_final_model.
--
+
+### Final model and validation (results/step4_final_model, results/step5_final_model)
+Final parameters: k_n 1.082 x (+/-0.01 dex), k_p 9.52 x (+/-0.42), D_n 3.5e-14 m2/s (at feasibility bound),
+D_p 1.773 x (+/-0.20), R_c 2.09 mOhm; correlations < 0.4. Flat cost (k_p 0.14-57, D_p 0.7-2.3 -> cost 54.4-54.6 mV).
+Run resumed once after a thermal shutdown. Coverage 100 % on all six tests.
+Training RMSE (Task 3 -> final): C1 20.8->21.2, C2 20.7->21.8, C3 19.7->20.3, C4 20.8->17.4, D1 119.9->120.6,
+HPPC odd levels 42.1->39.3 mV.
+
+HPPC validation [mV]          RMSE  RMSE_tw   MAE    max   mean  rest  dynamic
+full test   Task 3            43.1   22.5    29.8  350.7  10.0  11.7   46.8
+            final             40.9   21.6    29.4  293.9   8.7  11.6   44.4
+0-14.3 h    Task 2            37.3   30.1    29.9  206.8 -18.9  28.2   38.8
+            Task 3            37.6   20.3    26.5  200.8   6.5  10.0   40.9
+            final             35.1   19.2    25.7  165.7   4.3  10.0   38.1
+held-out    Task 3            46.1   27.4    33.2  350.7  13.9  16.4   48.6
+            final             44.5   26.8    33.3  293.9  13.3  16.3   46.9
+training lv final             39.3   19.5    29.1  287.5   5.2   8.7   41.6
+(Subset time weights computed on the full time grid - an earlier version computed them on the subset and
+gave 53-55 mV; fixed.)
+
+Physical variables (final): anode potential vs Li/Li+ at separator: HPPC -122.3 mV (276 s < 0 V),
+4C charge -93.7 mV (791 s < 0 V). Likely overestimated: model charge-pulse resistance 16.8 vs 5.9 mOhm
+measured; isothermal; no plating reaction.
