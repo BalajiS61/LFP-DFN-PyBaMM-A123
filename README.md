@@ -62,6 +62,7 @@ All commands from the project root with the virtual environment active. Outputs 
 | 4a | `python src\step4a_training_check.py` | training data, initial states, mesh check | ~4 min |
 | 4 | `python src\step4_optimize.py --diagnose` | where the training error is (by phase) | ~1 min |
 | 4b | `python src\step4b_dp_shape_probe.py --workers 3` | state-dependent diffusivity feasibility | ~10 min |
+| 4c | `python src\step4c_bbot_feasibility.py --workers 3` | graphite low-x diffusivity vs HPPC feasibility (default mesh) | ~10 min |
 | 4 | see below | **Task 4**: optimization | ~1-1.5 h |
 | 5 | see below | **Task 5**: validation, physical variables | ~5 min |
 
@@ -70,23 +71,26 @@ All commands from the project root with the virtual environment active. Outputs 
 Residual analysis of any run: `python src\step3a_residual_analysis.py --input <csv> --out <folder> --label "<name>"`.
 
 ### Task 4 - optimization
-Final model (graphite diffusivity reduced near empty, CV phase excluded from the cost):
+Final model (k_n, k_p, D_n, D_p + contact resistance; training = Charge 1C-4C constant-current parts,
+Discharge 1C, HPPC odd SOC levels; HPPC even levels held out; default mesh):
 ```
-python src\step4_optimize.py --fit k_n,D_n,D_p,b_bot --init k_n=0.59,D_p=0.42,b_bot=2 --cost-window cc --tag final --max-nfev 40 --workers 3
+python src\step4_optimize.py --fit k_n,k_p,D_n,D_p --init k_n=1.16,k_p=10.5,D_n=3.6e-14,D_p=0.37 --bounds D_n=3.5e-14:3e-13 --hppc-split --cost-window cc --mesh default --tag final_model --max-nfev 25 --workers 3
 ```
-Sensitivity run (four constant parameters, all data incl. CV phase): `python src\step4_optimize.py --max-nfev 40 --workers 3`.
+Earlier runs documented in the report (sensitivity / rejected variants): four constant parameters on all
+training data (`--max-nfev 40`), graphite low-x diffusivity (`--fit k_n,D_n,D_p,b_bot`), coarse-mesh split fit.
 Interrupted runs continue with `--resume`. Progress is saved after every evaluation
-(`results/step4_<tag>/history.jsonl`, `best_so_far.json`).
+(`results/step4_<tag>/history.jsonl`, `best_so_far.json`); each evaluation line reports any test that
+stops early.
 
 ### Task 5 - validation
 ```
-python src\step5_validate.py --params results\step4_final\optimized_parameters.json --tag final
+python src\step5_validate.py --params results\step4_final_model\optimized_parameters.json --tag final_model
 ```
 HPPC validation (default mesh), comparison baseline / Task 3 / optimized, time-weighted and rest-vs-dynamic
 errors, training fits, anode potential vs Li/Li+ and other physical variables (HPPC and 4C charge).
 
 ## Optimized parameters
-Saved as JSON: `results/step4_final/optimized_parameters.json` (fitted values, uncertainties,
+Saved as JSON: `results/step4_final_model/optimized_parameters.json` (fitted values, uncertainties,
 correlations, training errors, settings). Reuse the final model:
 ```python
 from final_model import load_optimized, optimized_parameter_values, simulate_optimized
@@ -112,5 +116,7 @@ The OCV / capacity calibration it builds on is `results/step3c/ocv_calibration.j
 - No LFP hysteresis branch data in the measurements; no lithium plating model.
 - The CV phase of the charge tests (cell held at 3.6 V) is not reproduced by the DFN and is excluded
   from the fit; its error is reported separately.
+- The sharp end-of-discharge plunge at 1C is not reproduced: the graphite-diffusivity term that captures it
+  makes the 15C HPPC pulses fail at low SOC (single-particle-size DFN limit).
 - Charge tests: the first 0.15 Ah (cell still relaxing from the preceding discharge) is excluded from the fit.
 -

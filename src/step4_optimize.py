@@ -21,7 +21,8 @@ Optimizer
            finite-difference Jacobian), bounds from Steps 3a-3e
     inner: R_c and dh solved exactly by bounded linear least squares for every DFN run
            (variable projection) - no extra simulations
-    cost : each training set weighted equally (residuals scaled by 1/sqrt(N_set))
+    cost : each training set weighted equally (residuals scaled by 1/sqrt(N_set)); a run that
+           stops early is penalised over every sample it cannot simulate
     speed: the 5 training sets are simulated in parallel processes
 
 Run from the project root:
@@ -286,14 +287,17 @@ class Evaluator:
             sel = masks[k] if masks is not None else np.ones(d.t.size, bool)
             w = 1.0 / np.sqrt(max(sel.sum(), 1))
             if V is None:
-                pen.append(np.full(sel.sum(), PENALTY_V * w))
+                pen.append(np.full(d.t.size, PENALTY_V * w))
                 continue
             ok = np.isfinite(V) & sel
             cols = [d.I_raw[ok] if use_rc else np.zeros(ok.sum()),
                     self.eta[k][ok] if use_dh else np.zeros(ok.sum())]
             A.append(np.column_stack(cols) * w)
             b.append((d.V[ok] - V[ok]) * w)
-            miss = sel & ~np.isfinite(V)
+            # a run that stops early is penalised over ALL samples it cannot simulate,
+            # including held-out ones: only the fact that it stopped is used (it depends on
+            # the input current), never the held-out voltages
+            miss = ~np.isfinite(V)
             if miss.any():
                 pen.append(np.full(miss.sum(), PENALTY_V * w))
         A = np.vstack(A) if A else np.zeros((0, 2))
@@ -353,7 +357,11 @@ class Evaluator:
         print(f"  eval {self.n_eval:>3}{'' if not tag else ' (' + tag + ')':<12} rms {rec['rms_mV']:6.1f} mV  "
               + "  ".join(f"{p[0]}={values[p[0]]:.3g}" for p in PARAMS)
               + f"  R_c={1000 * rc:.2f} mOhm  dh={1000 * dh:.1f} mV  ({rec['eval_s']:.0f} s, "
-              f"{rec['elapsed_min']:.1f} min)", flush=True)
+              f"{rec['elapsed_min']:.1f} min)"
+              + ("  STOPPED: " + ",".join(k for k in self.keys
+                                         if not str(sims[k][1]).startswith("final time"))
+                 if any(not str(sims[k][1]).startswith("final time") for k in self.keys) else ""),
+              flush=True)
         if len(self._cache) > 64:
             self._cache.clear()
         self._cache[key] = r
@@ -474,7 +482,7 @@ def run_diagnose(ev):
         a.set_ylim(min(d.V.min(), np.nanmin(V)) - 0.05, max(d.V.max(), np.nanmax(V)) + 0.05)
         a.set_ylabel("Voltage [V]")
         a.set_title(DATASETS[k])
-        a.legend(fontsize=7, ncol=5)
+        a.legend(fontsize=7, ncol=5, loc="lower right")
         a.grid(alpha=0.3)
     ax[-1, 0].set_xlabel("Time [min]")
     fig.tight_layout()
@@ -517,9 +525,15 @@ def finalize(ev, res, args, pool):
         out = {}
         for k in ev.keys:
             d, V = ev.data[k], sims[k][0]
+            if V is None or not np.isfinite(V).any():
+                out[k] = {"RMSE_V": float("nan"), "MAE_V": float("nan"), "MaxAbs_V": float("nan"),
+                          "MeanError_V": float("nan"), "coverage": 0.0, "termination": str(sims[k][1])}
+                continue
             ok = np.isfinite(V)
-            out[k] = voltage_metrics(V[ok] + rc_ * d.I_raw[ok] + dh_ * ev.eta[k][ok] - d.V[ok],
-                                     d.I_raw[ok])
+            m = voltage_metrics(V[ok] + rc_ * d.I_raw[ok] + dh_ * ev.eta[k][ok] - d.V[ok], d.I_raw[ok])
+            m["coverage"] = float(ok.mean())
+            m["termination"] = str(sims[k][1])
+            out[k] = m
         return out
     per_full = full_metrics(sims_fine, rc, dh)
     per0_full = full_metrics(sims0, 0.0, 0.0)
@@ -600,6 +614,16 @@ def finalize(ev, res, args, pool):
     for k in ev.keys:
         print(f"  {k:<4}{1000 * per0_full[k]['RMSE_V']:>6.1f} ->{1000 * per_full[k]['RMSE_V']:>6.1f}")
 
+    print("\n  COVERAGE of the optimized model (default mesh):")
+    all_ok = True
+    for k in ev.keys:
+        c = per_full[k]["coverage"]
+        flag = "" if c > 0.999 else "   <-- STOPPED EARLY: " + per_full[k]["termination"]
+        all_ok &= c > 0.999
+        print(f"  {k:<4}{100 * c:>7.1f} %{flag}")
+    print("  -> all tests simulated completely" if all_ok else
+          "  -> WARNING: at least one test stops early - do not accept this result")
+
     calib = load_ocv_calibration()
     pv, _ = build_parameter_values(values, calib)
     absolute = {}
@@ -639,6 +663,7 @@ def finalize(ev, res, args, pool):
         "training_rmse_mV_optimized": {k: 1000 * per[k]["RMSE_V"] for k in ev.keys},
         "full_curve_rmse_mV_task3": {k: 1000 * per0_full[k]["RMSE_V"] for k in ev.keys},
         "full_curve_rmse_mV_optimized": {k: 1000 * per_full[k]["RMSE_V"] for k in ev.keys},
+        "coverage_optimized": {k: per_full[k]["coverage"] for k in ev.keys},
         "cost_window": COST_WINDOW,
         "training_window": (f"charge tests from {EXCLUDE_AH} Ah of charge onward"
                             + (", constant-current part only (CV phase excluded)" if COST_WINDOW == "cc" else "")
@@ -656,8 +681,9 @@ def finalize(ev, res, args, pool):
     fig, ax = plt.subplots(len(ev.keys), 2, figsize=(14, 3.0 * len(ev.keys)), squeeze=False)
     for i, k in enumerate(ev.keys):
         d = ev.data[k]
-        V1 = sims_fine[k][0] + rc * d.I_raw + dh * ev.eta[k]
-        V0 = sims0[k][0]
+        nanv = np.full(d.t.size, np.nan)
+        V1 = (sims_fine[k][0] if sims_fine[k][0] is not None else nanv) + rc * d.I_raw + dh * ev.eta[k]
+        V0 = sims0[k][0] if sims0[k][0] is not None else nanv
         ax[i, 0].plot(d.t / 60, d.V, "k", lw=1, label="Measured")
         ax[i, 0].plot(d.t / 60, V0, ":", color="tab:gray", lw=1, label="Task 3 model")
         ax[i, 0].plot(d.t / 60, V1, "--", color="tab:orange", lw=1, label="Optimized")
@@ -667,12 +693,12 @@ def finalize(ev, res, args, pool):
             ax[i, 0].axvspan(0, d.t[~ev.masks[k]][-1] / 60, color="tab:gray", alpha=0.15,
                              label="excluded (initial history)")
         ax[i, 0].set_ylabel("Voltage [V]")
-        ax[i, 0].legend(fontsize=7)
+        ax[i, 0].legend(fontsize=7, loc="lower right")
         ax[i, 1].plot(d.t / 60, (V0 - d.V) * 1000, ":", color="tab:gray", lw=0.8, label="Task 3")
         ax[i, 1].plot(d.t / 60, (V1 - d.V) * 1000, color="tab:red", lw=0.8, label="Optimized")
         ax[i, 1].axhline(0, color="k", lw=0.5)
         ax[i, 1].set_ylabel("Error [mV]")
-        ax[i, 1].legend(fontsize=7)
+        ax[i, 1].legend(fontsize=7, loc="upper right")
         for a in ax[i]:
             a.grid(alpha=0.3)
     ax[-1, 0].set_xlabel("Time [min]")

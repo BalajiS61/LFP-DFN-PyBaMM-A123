@@ -326,3 +326,135 @@ preceding discharge is unknown to the model (uniform initial state), so no param
 - D_p bounds widened to 0.001-1000 x Prada2013 (evidence points to slower LFP transport).
 - Contact resistance and hysteresis kept as free linear terms (solved exactly by variable projection);
   if they stay ~0 this is reported as "not supported by the data".
+
+---
+
+## Step 4 - Optimization
+
+### Method assessment: gradient-based vs non-gradient
+| | Gradient-based (trust-region least squares, Levenberg-Marquardt) | Non-gradient (Nelder-Mead, Powell, CMA-ES, PSO, Bayesian) |
+|---|---|---|
+| Evaluations needed | tens (uses the residual Jacobian) | hundreds to thousands |
+| Cost here (~30-60 s per evaluation of all 5 training sets) | ~0.5-1.5 h | ~4-25 h |
+| Global search | no - needs a good start | yes (CMA-ES, PSO) |
+| Robustness to noisy / failing simulations | lower | higher |
+| By-products | Jacobian -> parameter uncertainty and correlation | none |
+Choice: gradient-based `scipy.optimize.least_squares` (method 'trf', bounds) from the physics-based
+Task 3 starting point, with log10-scaled parameters. The extensive manual analysis (Steps 3a-3e)
+provides a starting point close to the optimum, which removes the main weakness of local methods;
+the Jacobian gives parameter uncertainties and correlations. Robustness measures: bounds from Step 3,
+failed / stopped simulations penalised instead of crashing, checkpointing after every evaluation.
+
+### Pipeline (step4_optimize.py)
+- Training data: Charge 1C, 2C, 3C, 4C and Discharge 1C, simulated in parallel processes.
+- Residual: model - measured voltage per sample, each set weighted equally (1/sqrt(N)).
+- Variable projection: series contact resistance (and an optional hysteresis term) enter the voltage
+  linearly and are solved exactly by bounded linear least squares for every DFN evaluation.
+- Coarse mesh during optimization (max 0.14 mV RMS difference to the default mesh, Step 4a),
+  default mesh for all final results.
+
+### Problems found and fixed during Step 4
+1. Jacobian step degenerate: scipy's relative finite-difference step collapses to ~1e-8 at a
+   parameter value of 0 (the start in log space), far below the solver tolerance -> zero Jacobian,
+   the optimizer never moved. Fixed with an explicit Jacobian using an absolute step of 0.03 decades
+   (~7 %); verified on synthetic data with a known optimum away from the start (recovered exactly).
+2. Hysteresis hypothesis rejected (see Step 4a notes): the term only absorbed CV-phase error; removed.
+3. Memory: 5 parallel workers on this laptop exceeded RAM (85 % used, disk paging) and the evaluation
+   time rose from ~30 s to ~250 s; 3 workers with other applications closed restored ~50 s.
+
+### Run A - four parameters (k_n, k_p, D_n, D_p), all data except the initial history window
+Converged (ftol) after 34 evaluations. Training RMSE 129.7 -> 123.8 mV (-4.5 %) only.
+k_n 0.589 x, k_p 1.41 x (+/- 0.55 dex: not identifiable), D_n 1.61e-14 m2/s, D_p 0.417 x Prada2013;
+correlations k_n-k_p -0.67, D_n-D_p -0.78; contact resistance ~0.
+Assessment: not acceptable as final. The remaining error is the CV phase (cell held at 3.600 V while
+the current tapers to ~5 mA, i.e. an almost-equilibrium voltage ~150 mV above the rested full-charge
+OCV of 3.447 V) - a slow top-of-charge relaxation that a constant-diffusivity DFN cannot produce.
+Chasing it pushed D_n below the 3e-14 m2/s that Task 3e showed is needed to complete HPPC.
+
+### Model-structure tests (step4b_dp_shape_probe.py) - state-dependent solid diffusivity
+Form: D(s) = D0 * 10^-(a exp(-s/w)) near an end of the stoichiometry range, w = 0.05.
+Base: Run A values, k_p fixed 1, D_n 3e-14. Errors in mV.
+
+LFP near full delithiation (a_top) - targets the CV hold:
+| a_top | C1 CV RMSE | C4 |
+|---|---|---|
+| 0 | 161.9 | completes, CV 152.7 |
+| 0.1 | 160.7 | completes, CV 155.3 |
+| 0.25 | 158.1 | stops at 25 % (voltage overshoot) |
+| 0.5 | 150.4 | stops at 24 % |
+| 1-3 | - | stops at 22-55 % (C1 and C4) |
+Rejected: too weak at 1C and too strong at 4C simultaneously. A diffusion limitation scales with
+current, but the CV hold occurs at a few mA, i.e. it is a slow relaxation, not polarization. Likely
+cause: LFP phase-transformation / many-particle effects, not represented in the DFN.
+
+LFP near full lithiation (a_bot): no effect at all - in the calibrated window LFP only reaches y ~ 0.75
+at the end of discharge.
+
+Graphite near empty (b_bot) - targets the end-of-discharge plunge and slow recovery:
+| b_bot | D1 total | D1 last 5 % | D1 rest after | D1 CC part |
+|---|---|---|---|---|
+| 0 | 119.8 | 308.2 | 306.9 | 48.9 |
+| 1 | 115.7 | 287.8 | 299.5 | 48.8 |
+| 2 | 104.6 | 236.0 | 275.8 | 48.6 |
+| 3 | 64.8 | 210.9 | - (run stops at 91 %) | 48.3 |
+Accepted: steady improvement exactly where intended, constant-current part and charge tests unaffected.
+Physical finding: the top-of-charge behaviour is controlled by LFP near full delithiation, the
+end-of-discharge behaviour by graphite near full delithiation.
+
+### Final-model design (decided before validation)
+- Fitted: k_n, D_n, D_p and b_bot (graphite diffusivity reduction near empty); k_p fixed at Prada2013.
+- Cost window: constant-current parts of the charge tests (from 0.15 Ah) + complete 1C discharge.
+  The CV phase is excluded (structural limit, shown by Run A and the a_top probe) and its error is
+  reported separately.
+- Run A is kept as a sensitivity result (effect of including the CV phase in the fit).
+
+### Training-only final fit (results/step4_final) - failed validation
+k_n 0.92, D_n 2.45e-14 m2/s, D_p 0.39, b_bot 2.22, R_c ~0 (k_p fixed). Training 40.4 -> 26.2 mV
+(D1 119.9 -> 53.3 mV). HPPC validation: coverage 79.8 % (minimum-voltage stop), 0-14.3 h window
+RMSE 44.4 mV vs Task 3 37.6 mV, dynamic 48.4 vs 40.9 mV -> worse than Task 3. Residual analysis:
+instantaneous pulse resistance unchanged (model 14.8 -> 7.6 mOhm non-linear, cell flat ~7.5-8 mOhm).
+Cause: constant-current training data carry almost no information on the sub-second kinetic/ohmic
+response and never reach 15C. Physical variables: anode potential vs Li/Li+ down to -139 mV (HPPC)
+and -110 mV for 881 s (4C charge): lithium-plating risk region (not modelled).
+
+### Split fit: HPPC odd SOC levels in training, even levels held out (results/step4_split)
+12 SOC levels; training 22,438 HPPC samples, held out 26,046. Fitted k_n, k_p, D_n (>= 3e-14), D_p, b_bot.
+Result: k_n 1.16, k_p 10.5, D_n 3.12e-14, D_p 0.37, b_bot 2.95, R_c 2.10 mOhm; max correlation 0.43
+(D_n-b_bot) - pulse data made k_p and R_c identifiable and removed the strong correlations.
+Training: D1 119.9 -> 51.9 mV, C4 20.8 -> 17.7 mV, HPPC training levels 42.1 -> 41.8 mV.
+
+Mesh sensitivity: HPPC completed with the coarse optimization mesh but stopped at 77.9 % on the default
+mesh (held-out 36.9 vs 46.1 mV therefore not comparable). Near b_bot ~3 the graphite diffusivity falls
+steeply near empty; the coarse radial mesh smooths it, the default mesh resolves it. The Step 4a mesh
+check held for the Task 3 model, not after adding b_bot -> refit on the default mesh (results/step4_split_fine).
+
+### Fine-mesh refits: cost cliff and b_bot feasibility
+- Split fit on the default mesh (results/step4_split_fine): the optimizer never moved (final = start).
+  Jacobian probes showed a cliff: D_n 3.15e-14 -> rms 69.2 mV (HPPC stops, penalty), D_n 3.38e-14 ->
+  51.0 mV. A gradient method assumes a smooth cost; its larger steps failed and it shrank back to the
+  start. Fixes: early stops penalised over ALL samples a run cannot simulate (incl. held-out levels -
+  only the fact that it stopped is used, never held-out voltages), and every evaluation line reports
+  stopped tests.
+- With the full penalty, even D_n 3.6e-14 / b_bot 2.3 stopped -> feasibility scan
+  (step4c_bbot_feasibility.py), default mesh, k_n 1.16, k_p 10.5, D_p 0.37:
+  | D_n | b_bot | HPPC coverage | D1 RMSE |
+  |---|---|---|---|
+  | 3.6e-14 | 0.0 | 100 % | 122.0 mV |
+  | 3.6e-14 | 0.5 | 90.5 % | 120.7 mV |
+  | 3.6e-14 | 1.0 | 90.4 % | 118.8 mV |
+  | 3.6e-14 | 1.5 | 85.0 % | 115.7 mV |
+  | 3.6e-14 | 2.0 | 85.0 % | 110.3 mV |
+  | 6.0e-14 | 2.0 | 90.4 % | 119.4 mV |
+  Any b_bot > 0 empties the graphite surface during 15C pulses at low SOC. b_bot is REJECTED for the final
+  model: it improves the slow 1C end of discharge but cannot coexist with 15C pulses. Structural limit of a
+  single-particle-size DFN (a particle-size distribution would let small particles carry pulses while large
+  ones produce the late plunge).
+
+### Final model design
+- Fitted: k_n, k_p, D_n (>= 3.5e-14, start 3.6e-14 = verified feasible point), D_p; contact resistance
+  solved exactly; no b_bot, no hysteresis.
+- Training: Charge 1C-4C (CC parts from 0.15 Ah), Discharge 1C (complete), HPPC odd SOC levels (dynamic parts).
+- Independent validation: HPPC even SOC levels. Full-HPPC metrics are partly training data (odd levels)
+  and partly calibration data (rests, Step 3c) - only the even-level dynamic error is fully independent.
+- Default (validation) mesh during optimization; run: results/step4_final_model.
+-

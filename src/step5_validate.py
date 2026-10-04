@@ -90,11 +90,19 @@ def phase_masks(t, I):
     return long_rest, ~long_rest
 
 
-def metrics_full(t, I, err):
-    """Per-sample metrics + time-weighted RMSE + rest / dynamic split."""
-    m = voltage_metrics(err, I)
-    w = np.diff(t, prepend=t[0])                             # backward interval length
+def time_weights(t):
+    """Backward interval length of each sample on a CONTIGUOUS time grid."""
+    w = np.diff(t, prepend=t[0])
     w[0] = w[1] if w.size > 1 else 1.0
+    return w
+
+
+def metrics_full(t, I, err, w=None):
+    """Per-sample metrics + time-weighted RMSE + rest / dynamic split.
+    For a subset of a test, pass w = time_weights(full grid)[subset]: weights computed on the
+    subset itself would span the skipped parts and be far too large."""
+    m = voltage_metrics(err, I)
+    w = time_weights(t) if w is None else w
     m["RMSE_time_weighted_V"] = float(np.sqrt(np.sum(w * err ** 2) / np.sum(w)))
     lr, dyn = phase_masks(t, I)
     m["RMSE_long_rest_V"] = float(np.sqrt(np.mean(err[lr] ** 2))) if lr.any() else float("nan")
@@ -225,13 +233,14 @@ def main():
         from step4_optimize import hppc_split_masks
         tr, ho = hppc_split_masks(hppc)
         tr, ho = tr[mask], ho[mask]
+        w_all = time_weights(t)
         print("\n   HPPC split used in the optimization: training = odd SOC levels, HELD-OUT = even levels")
         print(HEADER)
-        comp["optimized_heldout"] = metrics_full(t[ho], I[ho], err[ho])
-        comp["optimized_trainlevels"] = metrics_full(t[tr], I[tr], err[tr])
+        comp["optimized_heldout"] = metrics_full(t[ho], I[ho], err[ho], w_all[ho])
+        comp["optimized_trainlevels"] = metrics_full(t[tr], I[tr], err[tr], w_all[tr])
         if TASK3_CSV.exists():
             e3 = np.interp(t, d3["t_s"].to_numpy(), d3["error_V"].to_numpy())
-            comp["task3_heldout"] = metrics_full(t[ho], I[ho], e3[ho])
+            comp["task3_heldout"] = metrics_full(t[ho], I[ho], e3[ho], w_all[ho])
             print(row("Task 3, held-out levels", comp["task3_heldout"]))
         print(row("optimized, HELD-OUT levels", comp["optimized_heldout"]))
         print(row("optimized, training levels", comp["optimized_trainlevels"]))
